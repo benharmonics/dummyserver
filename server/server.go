@@ -14,40 +14,75 @@ type (
 		current uint64
 		mu      sync.Mutex
 	}
+
+	response struct {
+		ID      uint64 `json:"id"`
+		Message string `json:"message"`
+	}
 )
 
-const multipartFormMaxMemory = 1 << 21 // 2mb
+var (
+	idGenerator               = requestIDGenerator{}
+	printHeaders, ignoreParse bool
+)
 
-var idGenerator = requestIDGenerator{}
-
-func NewServer() Server {
+func NewServer(headersOn, noparse bool) Server {
+	printHeaders, ignoreParse = headersOn, noparse
 	s := Server{http.NewServeMux()}
-	s.HandleFunc("/", handler)
+	s.HandleFunc("/", router)
 	return s
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	headerBytes, err := json.MarshalIndent(r.Header, "", "\t")
-	must(err)
+func router(w http.ResponseWriter, r *http.Request) {
 	requestId := idGenerator.next()
 	log.Printf("[*] %s \"%s %s %s\" (request %d)\n", r.RemoteAddr, r.Method, r.URL, r.Proto, requestId)
-	log.Printf("[*] Request header (request %d):\n%v\n", requestId, string(headerBytes))
-	var data interface{}
-	if err = json.NewDecoder(r.Body).Decode(&data); err == nil {
-		b, err := json.MarshalIndent(data, "", "\t")
-		must(err)
-		log.Printf("[*] JSON request data (request %d):\n%s\n", requestId, string(b))
-		return
+	if printHeaders {
+		headerBytes, err := json.MarshalIndent(r.Header, "", "\t")
+		must(err) // can't error?
+		log.Printf("[*] Request header (request %d):\n%v\n", requestId, string(headerBytes))
 	}
-	// Failed to parse request as application/json - attempting to parse as multipart/form-data
-	if err = r.ParseMultipartForm(multipartFormMaxMemory); err == nil {
-		b, err := json.MarshalIndent(r.MultipartForm, "", "\t")
-		must(err)
-		log.Printf("[*] Multipart form data (request %d):\n%s\n", requestId, string(b))
+	switch r.Method {
+	case http.MethodOptions:
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+		// w.Header().Add("Access-Control-Allow-Credentials", "true")
+		w.Header().Add("Access-Control-Allow-Headers", "*")
+		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		return
+	case http.MethodGet:
+		_ = json.NewEncoder(w).Encode(response{requestId, "Ok"})
+		return
+	case http.MethodPost:
+		if ignoreParse {
+			return
+		}
+		next := decodeBody(requestId)
+		next(w, r)
+	default:
+		log.Printf("[!] Unsupported HTTP method %s\n", r.Method)
 	}
-	log.Printf("[x] Failed to parse request: unsupported Content-Type %s (request %d)\n", r.Header.Get("Content-Type"), requestId)
-	http.Error(w, "failed to parse as either JSON or multipart form", http.StatusNotImplemented)
+}
+
+func decodeBody(requestId uint64) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var data interface{}
+		if err := json.NewDecoder(r.Body).Decode(&data); err == nil {
+			b, err := json.MarshalIndent(data, "", "\t")
+			must(err)
+			log.Printf("[*] JSON request data (request %d):\n%s\n", requestId, string(b))
+			_ = json.NewEncoder(w).Encode(response{requestId, "Ok"})
+			return
+		}
+		log.Println("[!] Failed to parse request as application/json - attempting to parse as multipart/form-data")
+		if err := r.ParseMultipartForm(1_000_000); err == nil {
+			b, err := json.MarshalIndent(r.MultipartForm, "", "\t")
+			must(err)
+			log.Printf("[*] Multipart form data (request %d):\n%s\n", requestId, string(b))
+			_ = json.NewEncoder(w).Encode(response{requestId, "Ok"})
+			return
+		}
+		log.Printf("[x] Failed to parse request as either application/json or multipart/form-data (request %d)\n", requestId)
+		http.Error(w, "failed to parse request", http.StatusBadRequest)
+	}
 }
 
 func (gen *requestIDGenerator) next() uint64 {
