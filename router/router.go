@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type response struct {
@@ -26,8 +27,7 @@ func Router(w http.ResponseWriter, r *http.Request) {
 	requestID := idGenerator.next()
 	log.Printf("[*] %s \"%s %s %s\" (request %d)\n", r.RemoteAddr, r.Method, r.URL, r.Proto, requestID)
 	if PrintHeaders {
-		b, err := json.MarshalIndent(r.Header, "", "\t")
-		must(err) // can't error?
+		b, _ := json.MarshalIndent(r.Header, "", "\t")
 		log.Printf("[*] Request header (request %d):\n%v\n", requestID, string(b))
 	}
 	switch r.Method {
@@ -53,24 +53,45 @@ func Router(w http.ResponseWriter, r *http.Request) {
 
 func decodeBody(requestID uint64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var body interface{}
-		if err := json.NewDecoder(r.Body).Decode(&body); err == nil {
-			b, err := json.MarshalIndent(body, "", "\t")
-			must(err)
-			log.Printf("[*] JSON request data (request %d):\n%s\n", requestID, string(b))
-			_ = json.NewEncoder(w).Encode(responseOK(requestID))
+		contentType := r.Header.Get("Content-Type")
+		if contentType == "application/json" {
+			next := decodeJSON(requestID)
+			next(w, r)
 			return
 		}
-		log.Println("[!] Failed to parse request as application/json - attempting to parse as multipart/form-data")
-		if err := r.ParseMultipartForm(multipartFormMaxMemory); err == nil {
-			b, err := json.MarshalIndent(r.MultipartForm, "", "\t")
-			must(err)
-			log.Printf("[*] Multipart form data (request %d):\n%s\n", requestID, string(b))
-			_ = json.NewEncoder(w).Encode(responseOK(requestID))
+		if strings.HasPrefix(contentType, "multipart/form-data") {
+			next := decodeFormData(requestID)
+			next(w, r)
 			return
 		}
-		log.Printf("[x] Failed to parse request as either application/json or multipart/form-data (request %d)\n", requestID)
+		log.Printf("[x] Unsupported Content-Type: %s (request %d)", contentType, requestID)
 		http.Error(w, "failed to parse request", http.StatusBadRequest)
+	}
+}
+
+func decodeJSON(requestID uint64) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "failed to parse as application/json", http.StatusBadRequest)
+			return
+		}
+		b, _ := json.MarshalIndent(body, "", "\t")
+		log.Printf("[*] JSON request data (request %d):\n%s\n", requestID, string(b))
+		_ = json.NewEncoder(w).Encode(responseOK(requestID))
+	}
+}
+
+func decodeFormData(requestID uint64) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(multipartFormMaxMemory); err != nil {
+			http.Error(w, "failed to parse as multipart/form-data", http.StatusBadRequest)
+			return
+		}
+		b, err := json.MarshalIndent(r.MultipartForm, "", "\t")
+		must(err)
+		log.Printf("[*] Multipart form data (request %d):\n%s\n", requestID, string(b))
+		_ = json.NewEncoder(w).Encode(responseOK(requestID))
 	}
 }
 
