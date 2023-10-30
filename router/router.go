@@ -46,8 +46,9 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		next := decodeBody(requestID)
 		next(w, r)
 	default:
-		log.Printf("[!] Unsupported HTTP method: %s\n", r.Method)
-		http.Error(w, fmt.Sprintf("unsupported method: %s", r.Method), http.StatusNotImplemented)
+		res := response{requestID, fmt.Sprintf("Unsupported method: %s", r.Method)}
+		_ = json.NewEncoder(w).Encode(res)
+		log.Printf("[!] %s (request %d)\n", res.Message, requestID)
 	}
 }
 
@@ -64,8 +65,9 @@ func decodeBody(requestID uint64) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		log.Printf("[!] Unsupported Content-Type: %s (request %d)\n", contentType, requestID)
-		http.Error(w, fmt.Sprintf("unsupported Content-Type: %s", contentType), http.StatusNotImplemented)
+		res := response{requestID, fmt.Sprintf("Unsupported Content-Type: %s", contentType)}
+		_ = json.NewEncoder(w).Encode(res)
+		log.Printf("[!] %s (request %d)\n", res.Message, requestID)
 	}
 }
 
@@ -73,7 +75,9 @@ func decodeJSON(requestID uint64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body interface{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "failed to parse as application/json", http.StatusBadRequest)
+			res := response{requestID, "Failed to parse as application/json"}
+			_ = json.NewEncoder(w).Encode(res)
+			log.Printf("[!] %s (request %d)\n", res.Message, requestID)
 			return
 		}
 		b, _ := json.MarshalIndent(body, "", "\t")
@@ -85,7 +89,9 @@ func decodeJSON(requestID uint64) http.HandlerFunc {
 func decodeFormData(requestID uint64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseMultipartForm(multipartFormMaxMemory); err != nil {
-			http.Error(w, "failed to parse as multipart/form-data", http.StatusBadRequest)
+			res := response{requestID, "Failed to parse as multipart/form-data"}
+			_ = json.NewEncoder(w).Encode(res)
+			log.Printf("[!] %s (request %d)\n", res.Message, requestID)
 			return
 		}
 		b, _ := json.MarshalIndent(r.MultipartForm, "", "\t")
