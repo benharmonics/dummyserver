@@ -88,15 +88,8 @@ func decodeFormData(requestID uint64) http.HandlerFunc {
 			http.Error(w, "failed to parse as multipart/form-data", http.StatusBadRequest)
 			return
 		}
-		b, err := json.MarshalIndent(r.MultipartForm, "", "\t")
-		must(err)
+		b, _ := json.MarshalIndent(r.MultipartForm, "", "\t")
 		log.Printf("[*] Multipart form data (request %d):\n%s\n", requestID, string(b))
 		_ = json.NewEncoder(w).Encode(responseOK(requestID))
-	}
-}
-
-func must(err error) {
-	if err != nil {
-		panic(err)
 	}
 }
