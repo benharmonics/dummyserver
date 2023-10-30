@@ -10,19 +10,24 @@ From the project directory, run the program with
 go run main.go
 ```
 
-Alternatively, you can build the executable with
+By default, the server listens on port 9090. To change this, set the `-port`
+flag e.g.:
 
 ```bash
-go build
+go run main.go -port=8989
+```
+
+Run with the `-help` to see more options.
+
+## Installing
+
+You can install the executable with
+
+```bash
+go install
 ```
 
 and then run it with the command `dummyserver`.
-
-To listen on a specific port, set the `-port` flag, i.e.
-
-```bash
-dummyserver -port 5432
-```
 
 ## Help
 
