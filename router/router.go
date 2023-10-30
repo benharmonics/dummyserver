@@ -46,7 +46,7 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		next := decodeBody(requestID)
 		next(w, r)
 	default:
-		log.Printf("[!] Unsupported HTTP method %s\n", r.Method)
+		log.Printf("[!] Unsupported HTTP method: %s\n", r.Method)
 		http.Error(w, fmt.Sprintf("unsupported method: %s", r.Method), http.StatusNotImplemented)
 	}
 }
@@ -64,8 +64,8 @@ func decodeBody(requestID uint64) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		log.Printf("[x] Unsupported Content-Type: %s (request %d)", contentType, requestID)
-		http.Error(w, "failed to parse request", http.StatusBadRequest)
+		log.Printf("[!] Unsupported Content-Type: %s (request %d)\n", contentType, requestID)
+		http.Error(w, fmt.Sprintf("unsupported Content-Type: %s", contentType), http.StatusNotImplemented)
 	}
 }
 
