@@ -20,8 +20,9 @@ var (
 	multipartFormMaxMemory int64 = 50_000_000 // 50 mb stored in memory; additional form data stored on disk
 
 	idGenerator = requestIDGenerator{}
-	responseOK  = func(id uint64) response { return response{id, "OK"} }
 )
+
+func responseOK(id uint64) response { return response{id, "OK"} }
 
 func Router(w http.ResponseWriter, r *http.Request) {
 	requestID := idGenerator.next()
