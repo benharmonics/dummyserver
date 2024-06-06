@@ -19,6 +19,12 @@ go run main.go -port=8989
 
 Run with the `-help` flag to see more options.
 
+Send a request to the dummyserver e.g.
+
+```bash
+curl localhost:9090 --json '{ "message": "Hello World" }'
+```
+
 ## Installing
 
 You can install the executable with
