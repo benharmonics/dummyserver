@@ -37,9 +37,8 @@ func main() {
 		wrt := io.MultiWriter(os.Stdout, f)
 		log.SetOutput(wrt)
 	}
-	s := http.NewServeMux()
-	s.HandleFunc("/", router.Router)
+	http.HandleFunc("/", router.Router)
 	addr := fmt.Sprintf("%s:%d", *host, *port)
 	log.Println("[*] Listening on", addr)
-	log.Fatalln(http.ListenAndServe(addr, s))
+	log.Fatalln(http.ListenAndServe(addr, nil))
 }
