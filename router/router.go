@@ -30,11 +30,10 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.MarshalIndent(r.Header, "", "\t")
 		log.Printf("[*] Request %d - Headers:\n%v\n", reqID, string(b))
 	}
-	if r.Method == http.MethodOptions {
+	if r.Method == http.MethodOptions { // CORS?
 		w.Header().Add("Access-Control-Allow-Origin", "*")
-		// w.Header().Add("Access-Control-Allow-Credentials", "true")
 		w.Header().Add("Access-Control-Allow-Headers", "*")
-		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, PATCH")
+		w.Header().Add("Access-Control-Allow-Methods", "*")
 	}
 	if IgnoreParse {
 		_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: "OK"})
