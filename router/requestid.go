@@ -1,16 +1,11 @@
 package router
 
-import "sync"
+import "sync/atomic"
 
-type requestIDGenerator struct {
-	current uint64
-	mu      sync.Mutex
-}
+type requestIDGenerator struct{ n atomic.Uint64 }
 
 func (gen *requestIDGenerator) next() uint64 {
-	gen.mu.Lock()
-	defer gen.mu.Unlock()
-	ret := gen.current
-	gen.current++
+	ret := gen.n.Load()
+	gen.n.Add(1)
 	return ret
 }
