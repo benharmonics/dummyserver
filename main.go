@@ -6,16 +6,22 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/benharmonics/dummyserver/server"
+	"github.com/benharmonics/dummyserver/router"
+)
+
+var (
+	port         = flag.Int("port", 9090, "The port on which the server listens for incoming HTTP requests")
+	printHeaders = flag.Bool("headers", false, "If set, prints the headers for each received request")
+	ignoreParse  = flag.Bool("noparse", false, "If set, the server will not attempt to parse the request body")
 )
 
 func main() {
-	port := flag.Int("port", 9000, "The port on which the server listens for incoming HTTP requests")
-	headers := flag.Bool("headers", false, "If true, prints the headers for each received request")
-	noparse := flag.Bool("noparse", false, "If true, the server will not attempt to parse the request body")
 	flag.Parse()
-	srv := server.NewServer(*headers, *noparse)
+	router.PrintHeaders = *printHeaders
+	router.IgnoreParse = *ignoreParse
+	s := http.NewServeMux()
+	s.HandleFunc("/", router.Router)
 	addr := fmt.Sprintf("localhost:%d", *port)
 	log.Println("[*] Listening on", addr)
-	panic(http.ListenAndServe(addr, srv))
+	panic(http.ListenAndServe(addr, s))
 }
