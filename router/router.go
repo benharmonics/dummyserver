@@ -2,10 +2,10 @@ package router
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"sync/atomic"
 )
 
@@ -30,7 +30,7 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.MarshalIndent(r.Header, "", "\t")
 		log.Printf("[*] Request %d - Headers:\n%v\n", reqID, string(b))
 	}
-	if r.Method == http.MethodOptions { // CORS?
+	if r.Method == http.MethodOptions { // TODO: CORS?
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Access-Control-Allow-Headers", "*")
 		w.Header().Add("Access-Control-Allow-Methods", "*")
@@ -39,29 +39,36 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: "OK"})
 		return
 	}
-	contentType, b, err := decodeBody(r)
+	req, err := decodeBody(r)
 	if err != nil {
 		_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: err.Error()})
-		log.Printf("[!] Request %d (Content-Type: \"%s\"):\n%s\n", reqID, contentType, err)
+		log.Printf("[!] Request %d (Content-Type: \"%s\"):\n%s\n", reqID, req.ContentType, err)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: "OK"})
-	log.Printf("[*] Request %d (Content-Type: \"%s\"):\n%s\n", reqID, contentType, string(b))
+	log.Printf("[*] Request %d (Content-Type: \"%s\", Implied Content-Type: \"%s\"):\n%s\n", reqID, req.ContentType, req.ImpliedContentType, string(req.Body))
 }
 
-func decodeBody(r *http.Request) (string, []byte, error) {
-	contentType := r.Header.Get("Content-Type")
-	if contentType == "" || strings.HasPrefix(contentType, "application/json") {
-		b, err := decodeJSON(r)
-		return contentType, b, err
-	} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
-		b, err := decodeURLEncoded(r)
-		return contentType, b, err
-	} else if strings.HasPrefix(contentType, "multipart/form-data") {
-		b, err := decodeFormData(r)
-		return contentType, b, err
+type decoded struct {
+	ContentType        string
+	ImpliedContentType string
+	Body               []byte
+}
+
+func decodeBody(r *http.Request) (*decoded, error) {
+	ret := &decoded{ContentType: r.Header.Get("Content-Type")}
+	var err error
+	if ret.Body, err = decodeJSON(r); err == nil {
+		ret.ImpliedContentType = "application/json"
+	} else if ret.Body, err = decodeURLEncoded(r); err == nil {
+		ret.ImpliedContentType = "application/x-www-form-urlencoded"
+	} else if ret.Body, err = decodeFormData(r); err == nil {
+		ret.ImpliedContentType = "multipart/form-data"
 	}
-	return contentType, nil, fmt.Errorf("unsupported Content-Type: \"%s\"", contentType)
+	if err != nil {
+		return nil, errors.New("failed to decode request body")
+	}
+	return ret, err
 }
 
 func decodeJSON(r *http.Request) ([]byte, error) {
