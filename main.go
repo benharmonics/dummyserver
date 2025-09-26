@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	host         = flag.String("host", "localhost", "The exposed host name")
 	port         = flag.Int("port", 9090, "The port on which the server listens for incoming HTTP requests")
 	printHeaders = flag.Bool("headers", false, "If set, prints the headers for each received request")
 	ignoreParse  = flag.Bool("noparse", false, "If set, the server will not attempt to parse the request body")
@@ -38,7 +39,7 @@ func main() {
 	}
 	s := http.NewServeMux()
 	s.HandleFunc("/", router.Router)
-	addr := fmt.Sprintf("localhost:%d", *port)
+	addr := fmt.Sprintf("%s:%d", *host, *port)
 	log.Println("[*] Listening on", addr)
 	log.Fatalln(http.ListenAndServe(addr, s))
 }
