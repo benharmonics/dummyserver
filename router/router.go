@@ -26,7 +26,7 @@ func responseOK(id uint64) response { return response{id, "OK"} }
 
 func Router(w http.ResponseWriter, r *http.Request) {
 	requestID := idGenerator.next()
-	log.Printf("[*] %s \"%s %s %s\" (request %d)\n", r.RemoteAddr, r.Method, r.URL, r.Proto, requestID)
+	log.Printf("[*] %s \"%s %s %s\" (Request %d)\n", r.RemoteAddr, r.Method, r.URL, r.Proto, requestID)
 	if PrintHeaders {
 		b, _ := json.MarshalIndent(r.Header, "", "\t")
 		log.Printf("[*] Request header (request %d):\n%v\n", requestID, string(b))
@@ -56,12 +56,11 @@ func Router(w http.ResponseWriter, r *http.Request) {
 func decodeBody(requestID uint64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		contentType := r.Header.Get("Content-Type")
-		if contentType == "application/json" {
-			next := decodeJSON(requestID)
+		if contentType == "application/json" || contentType == "application/x-www-form-urlencoded" {
+			next := decodeJSON(requestID, contentType)
 			next(w, r)
 			return
-		}
-		if strings.HasPrefix(contentType, "multipart/form-data") {
+		} else if strings.HasPrefix(contentType, "multipart/form-data") {
 			next := decodeFormData(requestID)
 			next(w, r)
 			return
@@ -72,17 +71,17 @@ func decodeBody(requestID uint64) http.HandlerFunc {
 	}
 }
 
-func decodeJSON(requestID uint64) http.HandlerFunc {
+func decodeJSON(requestID uint64, contentType string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body interface{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			res := response{requestID, "Failed to parse as application/json"}
+			res := response{requestID, fmt.Sprintf("Failed to parse as %s", contentType)}
 			_ = json.NewEncoder(w).Encode(res)
 			log.Printf("[!] %s (request %d)\n", res.Message, requestID)
 			return
 		}
 		b, _ := json.MarshalIndent(body, "", "\t")
-		log.Printf("[*] JSON request data (request %d):\n%s\n", requestID, string(b))
+		log.Printf("[*] Request %d (Content-Type: %s):\n%s\n", requestID, contentType, string(b))
 		_ = json.NewEncoder(w).Encode(responseOK(requestID))
 	}
 }
