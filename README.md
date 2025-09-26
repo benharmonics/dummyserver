@@ -17,7 +17,7 @@ flag e.g.:
 go run main.go -port=8989
 ```
 
-Run with the `-help` to see more options.
+Run with the `-help` flag to see more options.
 
 ## Installing
 
