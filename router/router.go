@@ -40,28 +40,33 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: "OK"})
 		return
 	}
-	b, err := decodeBody(r)
-	handleResponse(reqID, b, err, w)
+	contentType, b, err := decodeBody(r)
+	handleResponse(reqID, contentType, b, err, w)
 }
 
-func handleResponse(requestID uint64, data []byte, err error, w http.ResponseWriter) {
+func handleResponse(requestID uint64, contentType string, data []byte, err error, w http.ResponseWriter) {
 	if err == nil {
 		_ = json.NewEncoder(w).Encode(response{ID: requestID, Message: "OK"})
-		log.Printf("[*] Request %d:\n%s\n", requestID, string(data))
+		log.Printf("[*] Request %d (Content-Type: %s):\n%s\n", requestID, contentType, string(data))
 	} else {
 		_ = json.NewEncoder(w).Encode(response{ID: requestID, Message: err.Error()})
-		log.Printf("[!] Request %d:\n%s\n", requestID, err)
+		log.Printf("[!] Request %d (Content-Type: %s):\n%s\n", requestID, contentType, err)
 	}
 }
 
-func decodeBody(r *http.Request) ([]byte, error) {
+func decodeBody(r *http.Request) (string, []byte, error) {
 	contentType := r.Header.Get("Content-Type")
-	if strings.HasPrefix(contentType, "application/json") || strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
-		return decodeJSON(r)
+	if strings.HasPrefix(contentType, "application/json") {
+		b, err := decodeJSON(r)
+		return contentType, b, err
+	} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+		b, err := decodeURLEncoded(r)
+		return contentType, b, err
 	} else if strings.HasPrefix(contentType, "multipart/form-data") {
-		return decodeFormData(r)
+		b, err := decodeFormData(r)
+		return contentType, b, err
 	}
-	return nil, fmt.Errorf("unsupported Content-Type: %s", contentType)
+	return contentType, nil, fmt.Errorf("unsupported Content-Type: %s", contentType)
 }
 
 func decodeJSON(r *http.Request) ([]byte, error) {
@@ -70,6 +75,13 @@ func decodeJSON(r *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("failed to parse as application/json: %s", err)
 	}
 	return json.MarshalIndent(body, "", "\t")
+}
+
+func decodeURLEncoded(r *http.Request) ([]byte, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, fmt.Errorf("failed to parse as application/x-www-form-urlencoded: %s", err)
+	}
+	return json.MarshalIndent(r.Form, "", "\t")
 }
 
 func decodeFormData(r *http.Request) ([]byte, error) {
