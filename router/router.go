@@ -41,22 +41,18 @@ func Router(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	contentType, b, err := decodeBody(r)
-	handleResponse(reqID, contentType, b, err, w)
-}
-
-func handleResponse(requestID uint64, contentType string, data []byte, err error, w http.ResponseWriter) {
-	if err == nil {
-		_ = json.NewEncoder(w).Encode(response{ID: requestID, Message: "OK"})
-		log.Printf("[*] Request %d (Content-Type: %s):\n%s\n", requestID, contentType, string(data))
-	} else {
-		_ = json.NewEncoder(w).Encode(response{ID: requestID, Message: err.Error()})
-		log.Printf("[!] Request %d (Content-Type: %s):\n%s\n", requestID, contentType, err)
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: err.Error()})
+		log.Printf("[!] Request %d (Content-Type: \"%s\"):\n%s\n", reqID, contentType, err)
+		return
 	}
+	_ = json.NewEncoder(w).Encode(response{ID: reqID, Message: "OK"})
+	log.Printf("[*] Request %d (Content-Type: \"%s\"):\n%s\n", reqID, contentType, string(b))
 }
 
 func decodeBody(r *http.Request) (string, []byte, error) {
 	contentType := r.Header.Get("Content-Type")
-	if strings.HasPrefix(contentType, "application/json") {
+	if contentType == "" || strings.HasPrefix(contentType, "application/json") {
 		b, err := decodeJSON(r)
 		return contentType, b, err
 	} else if strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
@@ -66,7 +62,7 @@ func decodeBody(r *http.Request) (string, []byte, error) {
 		b, err := decodeFormData(r)
 		return contentType, b, err
 	}
-	return contentType, nil, fmt.Errorf("unsupported Content-Type: %s", contentType)
+	return contentType, nil, fmt.Errorf("unsupported Content-Type: \"%s\"", contentType)
 }
 
 func decodeJSON(r *http.Request) ([]byte, error) {
